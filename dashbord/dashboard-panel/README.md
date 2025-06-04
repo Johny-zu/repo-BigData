@@ -3,16 +3,6 @@
 ## Overview
 This project implements a credit risk dashboard using Panel, which allows users to analyze credit information of borrowers and predict potential defaults. The dashboard provides various filters and visualizations to help users make informed financial decisions.
 
-## Project Structure
-```
-dashboard-panel
-├── src
-│   ├── dashboard.py      # Main logic for the dashboard
-│   └── utils.py         # Utility functions for data processing
-├── requirements.txt      # List of dependencies
-└── README.md             # Project documentation
-```
-
 ## Installation
 
 1. Clone the repository:
@@ -56,12 +46,3 @@ The project requires the following Python packages:
 - Holoviews
 - hvplot
 
-Make sure to install these packages using the `requirements.txt` file.
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request for any improvements or bug fixes.
-
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for more details.
