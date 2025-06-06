@@ -10,9 +10,10 @@ from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans, DBSCAN
 from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn_extra.cluster import KMedoids
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -81,8 +82,14 @@ X = scaler.fit_transform(X_features)
 pca = PCA(n_components=2)
 X_pca = pca.fit_transform(X)
 
-tsne = TSNE(n_components=2, random_state=42)
-X_tsne = tsne.fit_transform(X)
+# t-SNE solo con una muestra si hay muchos datos
+if X.shape[0] > 2000:
+    idx = np.random.choice(X.shape[0], 2000, replace=False)
+    X_tsne = TSNE(n_components=2, random_state=42).fit_transform(X[idx])
+    y_tsne = y.iloc[idx]
+else:
+    X_tsne = TSNE(n_components=2, random_state=42).fit_transform(X)
+    y_tsne = y
 
 # 7. Método del codo
 inertia = []
@@ -91,51 +98,135 @@ for k in range(2, 10):
     kmeans.fit(X)
     inertia.append(kmeans.inertia_)
 
-# 8. Generación de gráficas y PDF
+# 8. Modelos supervisados y no supervisados
+
+# Regresión Lineal Simple (ejemplo: edad -> ingreso_mensual)
+linreg_simple = LinearRegression().fit(df[['edad']], df['ingreso_mensual'])
+simple_score = linreg_simple.score(df[['edad']], df['ingreso_mensual'])
+
+# Regresión Lineal Múltiple (todas menos ingreso_mensual y nivel_riesgo)
+X_mult = df.drop(['ingreso_mensual', 'nivel_riesgo'], axis=1)
+y_mult = df['ingreso_mensual']
+linreg_multi = LinearRegression().fit(X_mult, y_mult)
+multi_score = linreg_multi.score(X_mult, y_mult)
+
+# Regresión Logística (solo si es binaria)
+if len(np.unique(y)) == 2:
+    logreg = LogisticRegression().fit(X, y)
+    logreg_score = logreg.score(X, y)
+else:
+    logreg_score = None
+
+# LDA
+lda = LinearDiscriminantAnalysis()
+lda.fit(X, y)
+lda_score = lda.score(X, y)
+
+# KNN
+knn = KNeighborsClassifier(n_neighbors=5)
+knn.fit(X, y)
+knn_score = knn.score(X, y)
+
+# K-Means
+kmeans = KMeans(n_clusters=3, random_state=42)
+kmeans.fit(X)
+kmeans_silhouette = silhouette_score(X, kmeans.labels_)
+
+# K-Medoids
+kmedoids = KMedoids(n_clusters=3, random_state=42)
+kmedoids_labels = kmedoids.fit_predict(X)
+kmedoids_silhouette = silhouette_score(X, kmedoids_labels)
+
+# DBSCAN
+dbscan = DBSCAN(eps=0.5, min_samples=5)
+dbscan_labels = dbscan.fit_predict(X)
+if len(set(dbscan_labels)) > 1 and -1 in dbscan_labels:
+    mask = dbscan_labels != -1
+    dbscan_silhouette = silhouette_score(X[mask], dbscan_labels[mask])
+elif len(set(dbscan_labels)) > 1:
+    dbscan_silhouette = silhouette_score(X, dbscan_labels)
+else:
+    dbscan_silhouette = None
+
+# GMM
+gmm = GaussianMixture(n_components=3, random_state=42)
+gmm_labels = gmm.fit_predict(X)
+gmm_silhouette = silhouette_score(X, gmm_labels)
+
+# 9. Selección del mejor modelo
+scores = {
+    "KMeans": kmeans_silhouette,
+    "KMedoids": kmedoids_silhouette,
+    "GMM": gmm_silhouette
+}
+if dbscan_silhouette is not None:
+    scores["DBSCAN"] = dbscan_silhouette
+best_model = max(scores, key=scores.get)
+
+# 10. Generación de gráficas y PDF
 with PdfPages("graficas_credito.pdf") as pdf:
-    # 1. Histograma
-    df.hist(figsize=(12, 8))
-    plt.suptitle("Histogramas de las variables numéricas")
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    pdf.savefig()
-    plt.close()
-
-    # Página en blanco para interpretación
-    plt.figure(figsize=(8, 2))
-    plt.axis('off')
-    plt.text(0.5, 0.5, "Interpretación de los histogramas:\n\n", ha='center', va='center', fontsize=12)
-    pdf.savefig()
-    plt.close()
-
-    # 2. Boxplots
-    df.plot(kind='box', subplots=True, layout=(2, int(np.ceil(len(df.select_dtypes(include=np.number).columns) / 2))), figsize=(12, 6))
-    plt.suptitle("Boxplots de las variables numéricas")
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    pdf.savefig()
-    plt.close()
-
-    # Página en blanco para interpretación
-    plt.figure(figsize=(8, 2))
-    plt.axis('off')
-    plt.text(0.5, 0.5, "Interpretación de los boxplots:\n\n", ha='center', va='center', fontsize=12)
-    pdf.savefig()
-    plt.close()
-
-    # 3. Heatmap de correlación
+    # Separador: Mostrando análisis de datos
     plt.figure(figsize=(10, 7))
-    sns.heatmap(df.corr(), annot=True, cmap='coolwarm')
-    plt.title('Heatmap de correlación')
-    pdf.savefig()
-    plt.close()
-
-    # Interpretación del heatmap
-    plt.figure(figsize=(8, 2))
     plt.axis('off')
-    plt.text(0.5, 0.5, "Interpretación del heatmap de correlación:\n\nAquí puedes analizar qué variables numéricas están más relacionadas entre sí. Observa los valores altos (positivos o negativos) para identificar relaciones fuertes.", ha='center', va='center', fontsize=12)
+    plt.text(0.5, 0.5, "Mostrando análisis de datos", ha='center', va='center', fontsize=24)
     pdf.savefig()
     plt.close()
 
-    # 4. Gráficas de barras para variables categóricas vs numéricas
+    # Panorama general de los datos
+    plt.figure(figsize=(10, 7))
+    plt.axis('off')
+    text = f"""Panorama General de los Datos
+
+Cantidad de observaciones: {df.shape[0]}
+Cantidad de columnas: {df.shape[1]}
+
+Tipos de datos:
+{df.dtypes}
+
+Cantidad de nulos por columna:
+{df.isnull().sum()}
+
+Cantidad de duplicados: {df.duplicated().sum()}
+
+Cantidad de valores únicos por columna:
+{df.nunique()}
+"""
+    plt.text(0, 1, text, fontsize=12, va='top', family='monospace')
+    pdf.savefig(); plt.close()
+
+    # Estadísticas básicas
+    plt.figure(figsize=(10, 7))
+    plt.axis('off')
+    plt.text(0, 1, "Estadísticas Básicas\n\n" + str(df.describe()), fontsize=10, va='top', family='monospace')
+    pdf.savefig(); plt.close()
+
+    # Histogramas individuales con rangos correctos
+    for col in df.select_dtypes(include=np.number).columns:
+        plt.figure(figsize=(8, 4))
+        min_val, max_val = df[col].min(), df[col].max()
+        sns.histplot(df[col], bins=30, kde=True)
+        plt.title(f'Histograma de {col} (rango: {min_val:.2f} a {max_val:.2f})')
+        plt.xlabel(col)
+        plt.ylabel('Frecuencia')
+        pdf.savefig()
+        plt.close()
+
+    # Boxplots individuales
+    for col in df.select_dtypes(include=np.number).columns:
+        plt.figure(figsize=(8, 4))
+        sns.boxplot(x=df[col])
+        plt.title(f'Boxplot de {col}')
+        pdf.savefig()
+        plt.close()
+
+    # Heatmap de correlación
+    plt.figure(figsize=(12, 10))
+    corr = df.select_dtypes(include=np.number).corr()
+    sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f')
+    plt.title('Heatmap de correlación entre variables numéricas')
+    pdf.savefig(); plt.close()
+
+    # Gráficas de barras para variables categóricas vs numéricas
     for col in df.select_dtypes(include='category').columns:
         if df[col].nunique() < 10:
             for num_col in df.select_dtypes(include=np.number).columns:
@@ -151,7 +242,14 @@ with PdfPages("graficas_credito.pdf") as pdf:
                 pdf.savefig()
                 plt.close()
 
-    # 5. Método del codo
+    # Separador: Manejo de modelos
+    plt.figure(figsize=(10, 7))
+    plt.axis('off')
+    plt.text(0.5, 0.5, "Manejo de modelos", ha='center', va='center', fontsize=24)
+    pdf.savefig()
+    plt.close()
+
+    # Método del codo
     plt.figure(figsize=(8, 5))
     plt.plot(range(2, 10), inertia, marker='o')
     plt.xlabel('Número de clusters')
@@ -166,7 +264,7 @@ with PdfPages("graficas_credito.pdf") as pdf:
     pdf.savefig()
     plt.close()
 
-    # 6. PCA
+    # PCA
     plt.figure(figsize=(8, 5))
     plt.scatter(X_pca[:, 0], X_pca[:, 1], c=y, cmap='viridis', alpha=0.6)
     plt.title('Reducción de dimensionalidad con PCA')
@@ -181,9 +279,9 @@ with PdfPages("graficas_credito.pdf") as pdf:
     pdf.savefig()
     plt.close()
 
-    # 7. t-SNE
+    # t-SNE
     plt.figure(figsize=(8, 5))
-    plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y, cmap='viridis', alpha=0.6)
+    plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=y_tsne, cmap='viridis', alpha=0.6)
     plt.title('Reducción de dimensionalidad con t-SNE')
     plt.xlabel('Componente 1')
     plt.ylabel('Componente 2')
@@ -196,58 +294,37 @@ with PdfPages("graficas_credito.pdf") as pdf:
     pdf.savefig()
     plt.close()
 
-# 9. Modelos supervisados y no supervisados
-# Para modelos supervisados, la variable objetivo debe ser numérica
-y_lr = y
-X_lr = X
+    # Resultados de modelos
+    plt.figure(figsize=(10, 7))
+    plt.axis('off')
+    resultados = (
+        f"Regresión Lineal Simple (edad -> ingreso_mensual): R2 = {simple_score:.3f}\n"
+        f"Regresión Lineal Múltiple (todas -> ingreso_mensual): R2 = {multi_score:.3f}\n"
+        f"Regresión Logística: {logreg_score if logreg_score is not None else 'No aplica'}\n"
+        f"LDA: {lda_score:.3f}\n"
+        f"KNN: {knn_score:.3f}\n"
+        f"KMeans Silhouette: {kmeans_silhouette:.3f}\n"
+        f"K-Medoids Silhouette: {kmedoids_silhouette:.3f}\n"
+        f"DBSCAN Silhouette: {dbscan_silhouette if dbscan_silhouette is not None else 'No aplica'}\n"
+        f"GMM Silhouette: {gmm_silhouette:.3f}\n"
+        f"Mejor modelo según silhouette: {best_model} (score: {scores[best_model]:.3f})"
+    )
+    plt.text(0.01, 0.5, resultados, fontsize=12, va='center')
+    pdf.savefig()
+    plt.close()
 
-# Regresión Logística (solo si es binaria)
-if len(np.unique(y_lr)) == 2:
-    logreg = LogisticRegression().fit(X_lr, y_lr)
-    print("Accuracy Regresión Logística:", logreg.score(X_lr, y_lr))
-
-# LDA
-lda = LinearDiscriminantAnalysis()
-lda.fit(X_lr, y_lr)
-print("Accuracy LDA:", lda.score(X_lr, y_lr))
-
-# KNN
-knn = KNeighborsClassifier(n_neighbors=5)
-knn.fit(X_lr, y_lr)
-print("Accuracy KNN:", knn.score(X_lr, y_lr))
-
-# K-Means
-kmeans = KMeans(n_clusters=3, random_state=42)
-kmeans.fit(X)
-print("Silhouette KMeans:", silhouette_score(X, kmeans.labels_))
-
-# DBSCAN
-dbscan = DBSCAN(eps=0.5, min_samples=5)
-dbscan_labels = dbscan.fit_predict(X)
-if len(set(dbscan_labels)) > 1 and -1 in dbscan_labels:
-    mask = dbscan_labels != -1
-    print("Silhouette DBSCAN:", silhouette_score(X[mask], dbscan_labels[mask]))
-elif len(set(dbscan_labels)) > 1:
-    print("Silhouette DBSCAN:", silhouette_score(X, dbscan_labels))
-else:
-    print("DBSCAN no encontró clusters válidos.")
-
-# GMM
-gmm = GaussianMixture(n_components=3, random_state=42)
-gmm_labels = gmm.fit_predict(X)
-print("Silhouette GMM:", silhouette_score(X, gmm_labels))
-
-# 10. Selección del mejor modelo
-scores = {
-    "KMeans": silhouette_score(X, kmeans.labels_),
-    "GMM": silhouette_score(X, gmm_labels)
-}
-if len(set(dbscan_labels)) > 1 and -1 in dbscan_labels:
-    scores["DBSCAN"] = silhouette_score(X[mask], dbscan_labels[mask])
-elif len(set(dbscan_labels)) > 1:
-    scores["DBSCAN"] = silhouette_score(X, dbscan_labels)
-best_model = max(scores, key=scores.get)
-print("Mejor modelo según silhouette score:", best_model, "con score:", scores[best_model])
+    # Conclusiones finales en el PDF
+    plt.figure(figsize=(10, 7))
+    plt.axis('off')
+    conclusiones = (
+        f"Conclusiones:\n\n"
+        f"El modelo con mejor desempeño de acuerdo al silhouette score fue: {best_model} (score: {scores[best_model]:.3f}).\n\n"
+        "Se recomienda analizar más a fondo las variables que más influyen en la segmentación y considerar la recolección de más datos si es posible.\n"
+        "Además, los resultados muestran el desempeño de todos los modelos supervisados y no supervisados aplicados al dataset."
+    )
+    plt.text(0.01, 0.5, conclusiones, fontsize=14, va='center')
+    pdf.savefig()
+    plt.close()
 
 # 11. Conclusiones
 print("\nConclusiones:")
