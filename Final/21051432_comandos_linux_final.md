@@ -25,5 +25,8 @@ pip3 --version
 ## Movimiento de mi dataset a la MV
 scp "C:\Users\angel\Downloads\Escuela\Octavo semestre\Big data\programas\Programas_peiton\Final\Credit_Risk_Benchmark_Dataset.csv" u21051432@192.168.1.3:/home/u21051432/
 
+## Activar un entorno visual creado antreriormente
+source ~/venv_wordcloud/bin/activate
 
-
+## Creamos el .py para ejecutar los modelos
+vi modelos_finales.py

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.backends.backend_pdf import PdfPages
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -12,6 +13,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.neighbors import KNeighborsClassifier
+
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -24,19 +26,19 @@ df = df_spark.toPandas()
 
 # Renombrar columnas a español
 df = df.rename(columns={
-    'rev_util':'uso_de_credito',
-    'age':'edad',
-    'debt_ratio':'radio_deuda',
-    'real_estate':'num_otros_prestamos',
-    'dependents':'num_dependientes',
-    'late_30_59':'atraso_30_59',
-    'late_60_89':'atraso_60_89',
-    'late_90':'atraso_90',
-    'monthly_inc':'ingreso_mensual',
-    'open_credit':'cuentas_abiertas'
+    'rev_util': 'uso_de_credito',
+    'age': 'edad',
+    'debt_ratio': 'radio_deuda',
+    'real_estate': 'num_otros_prestamos',
+    'dependents': 'num_dependientes',
+    'late_30_59': 'atraso_30_59',
+    'late_60_89': 'atraso_60_89',
+    'late_90': 'atraso_90',
+    'monthly_inc': 'ingreso_mensual',
+    'open_credit': 'cuentas_abiertas'
 })
 
-# Crear columna 'nivel_riesgo' según el atraso_90, atraso_60_89 y atraso_30_59
+# Crear columna 'nivel_riesgo' según los atrasos
 def clasificar_riesgo(row):
     if row['atraso_90'] > 0:
         return 'Alto'
@@ -59,34 +61,37 @@ print("Valores únicos por columna:\n", df.nunique())
 # 3. Análisis exploratorio de datos
 print("\nEstadísticas básicas:\n", df.describe(include='all'))
 
-# Histograma de todas las columnas numéricas
-df.hist(figsize=(15, 10))
-plt.tight_layout()
-plt.savefig("histogramas.png")
-plt.close()
+# Crear archivo PDF para todas las gráficas
+with PdfPages("graficas_credito.pdf") as pdf:
 
-# Boxplot de todas las columnas numéricas
-df.plot(kind='box', subplots=True, layout=(2, int(np.ceil(len(df.select_dtypes(include=np.number).columns)/2))), figsize=(15, 8))
-plt.tight_layout()
-plt.savefig("boxplots.png")
-plt.close()
+    # Histograma
+    df.hist(figsize=(15, 10))
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
 
-# 4. Heatmap de correlación
-plt.figure(figsize=(10,8))
-sns.heatmap(df.corr(), annot=True, cmap='coolwarm')
-plt.title('Heatmap de correlación')
-plt.savefig("heatmap_correlacion.png")
-plt.close()
+    # Boxplots
+    df.plot(kind='box', subplots=True, layout=(2, int(np.ceil(len(df.select_dtypes(include=np.number).columns) / 2))), figsize=(15, 8))
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
 
-# 5. Gráficas de barras entre dos variables (elige dos columnas relevantes)
-for col in df.select_dtypes(include='object').columns:
-    if df[col].nunique() < 10:
-        for num_col in df.select_dtypes(include=np.number).columns:
-            plt.figure()
-            sns.barplot(x=col, y=num_col, data=df)
-            plt.title(f'Relación entre {col} y {num_col}')
-            plt.savefig(f"barras_{col}_{num_col}.png")
-            plt.close()
+    # Heatmap de correlación
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(df.corr(), annot=True, cmap='coolwarm')
+    plt.title('Heatmap de correlación')
+    pdf.savefig()
+    plt.close()
+
+    # Gráficas de barras
+    for col in df.select_dtypes(include='object').columns:
+        if df[col].nunique() < 10:
+            for num_col in df.select_dtypes(include=np.number).columns:
+                plt.figure()
+                sns.barplot(x=col, y=num_col, data=df)
+                plt.title(f'Relación entre {col} y {num_col}')
+                pdf.savefig()
+                plt.close()
 
 # 6. Preparación de datos
 if 'ID' in df.columns:
@@ -95,50 +100,56 @@ for col in df.select_dtypes(include='object').columns:
     df[col] = df[col].astype('category').cat.codes
 df = df.dropna()
 
+# Separar variable objetivo antes de escalar
+y = df['nivel_riesgo']
+X_features = df.drop('nivel_riesgo', axis=1)
+
 # 7. Escalamiento
 scaler = StandardScaler()
-X = scaler.fit_transform(df)
+X = scaler.fit_transform(X_features)
 
-# 8. Reducción de dimensionalidad: PCA y t-SNE
+
+# 8. Reducción de dimensionalidad
 pca = PCA(n_components=2)
 X_pca = pca.fit_transform(X)
 
 tsne = TSNE(n_components=2, random_state=42)
 X_tsne = tsne.fit_transform(X)
 
-# 9. Método del codo para KMeans
+# 9. Método del codo
 inertia = []
 for k in range(2, 10):
     kmeans = KMeans(n_clusters=k, random_state=42)
     kmeans.fit(X)
     inertia.append(kmeans.inertia_)
+
 plt.plot(range(2, 10), inertia, marker='o')
 plt.xlabel('Número de clusters')
 plt.ylabel('Inercia')
 plt.title('Método del codo')
 plt.savefig("metodo_codo.png")
+with PdfPages("graficas_credito.pdf") as pdf:
+    pdf.savefig()
 plt.close()
 
 # 10. Modelos de Machine Learning
-
-# Regresión Lineal (usando la última columna como target)
 if df.shape[1] > 1:
     X_lr = X[:, :-1]
     y_lr = X[:, -1]
     lr = LinearRegression().fit(X_lr, y_lr)
     print("R2 Regresión Lineal:", lr.score(X_lr, y_lr))
 
-# Regresión Logística (si el target es binario)
+# Regresión Logística
 if len(np.unique(y_lr)) == 2:
     logreg = LogisticRegression().fit(X_lr, y_lr)
     print("Accuracy Regresión Logística:", logreg.score(X_lr, y_lr))
 
-# Análisis Discriminante Lineal
+# LDA
 lda = LinearDiscriminantAnalysis()
 lda.fit(X_lr, y_lr)
 print("Accuracy LDA:", lda.score(X_lr, y_lr))
 
-# K-Vecinos
+# KNN
 knn = KNeighborsClassifier(n_neighbors=5)
 knn.fit(X_lr, y_lr)
 print("Accuracy KNN:", knn.score(X_lr, y_lr))
@@ -164,7 +175,7 @@ gmm = GaussianMixture(n_components=3, random_state=42)
 gmm_labels = gmm.fit_predict(X)
 print("Silhouette GMM:", silhouette_score(X, gmm_labels))
 
-# 11. Selección del mejor modelo (comparar silhouette scores)
+# 11. Selección del mejor modelo
 scores = {
     "KMeans": silhouette_score(X, kmeans.labels_),
     "GMM": silhouette_score(X, gmm_labels)
@@ -176,10 +187,10 @@ elif len(set(dbscan_labels)) > 1:
 best_model = max(scores, key=scores.get)
 print("Mejor modelo según silhouette score:", best_model, "con score:", scores[best_model])
 
-# 12. Conclusiones y recomendaciones
+# 12. Conclusiones
 print("\nConclusiones:")
 print(f"El modelo con mejor desempeño de acuerdo al silhouette score fue: {best_model}.")
 print("Se recomienda analizar más a fondo las variables que más influyen en la segmentación y considerar la recolección de más datos si es posible.")
 
-# 13. Fin del script
-print("\nAnálisis completo. Gráficas guardadas como archivos PNG en el directorio actual.")
+# 13. Fin
+print("\nAnálisis completo. Gráficas guardadas en archivo PDF: graficas_credito.pdf")
