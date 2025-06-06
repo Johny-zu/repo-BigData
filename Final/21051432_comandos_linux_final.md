@@ -30,3 +30,6 @@ source ~/venv_wordcloud/bin/activate
 
 ## Creamos el .py para ejecutar los modelos
 vi modelos_finales.py
+
+## hacemos correr el codigo
+python3 modelos_finales.py
