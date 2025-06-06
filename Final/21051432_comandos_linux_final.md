@@ -25,6 +25,10 @@ pip3 --version
 ## Movimiento de mi dataset a la MV
 scp "C:\Users\angel\Downloads\Escuela\Octavo semestre\Big data\programas\Programas_peiton\Final\Credit_Risk_Benchmark_Dataset.csv" u21051432@192.168.1.3:/home/u21051432/
 
+## Activar hadoop para el hive
+start-all.sh
+jps
+
 ## Activar un entorno visual creado antreriormente
 source ~/venv_wordcloud/bin/activate
 
@@ -33,3 +37,6 @@ vi modelos_finales.py
 
 ## hacemos correr el codigo
 python3 modelos_finales.py
+
+## Tomar el pdf 
+scp u21051432@192.168.1.3:/home/u21051432/graficas_credito.pdf "C:\Users\angel\Downloads\graficas_credito.pdf

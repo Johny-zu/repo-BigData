@@ -99,7 +99,6 @@ for k in range(2, 10):
     inertia.append(kmeans.inertia_)
 
 # 8. Modelos supervisados y no supervisados
-
 # Regresión Lineal Simple (ejemplo: edad -> ingreso_mensual)
 linreg_simple = LinearRegression().fit(df[['edad']], df['ingreso_mensual'])
 simple_score = linreg_simple.score(df[['edad']], df['ingreso_mensual'])
@@ -204,18 +203,66 @@ Cantidad de valores únicos por columna:
     for col in df.select_dtypes(include=np.number).columns:
         plt.figure(figsize=(8, 4))
         min_val, max_val = df[col].min(), df[col].max()
-        sns.histplot(df[col], bins=30, kde=True)
+        if col == "uso_de_credito":
+            bins = np.arange(0, 1.1, 0.1)
+            sns.histplot(df[(df[col] >= 0) & (df[col] <= 1)][col], bins=bins, kde=True)
+            plt.xticks(bins)
+            plt.xlim(0, 1)
+            plt.ylim(0, 5000)  # Ajusta este valor según tu dataset para que sea legible
+        elif col == "radio_deuda":
+            bins = np.arange(0, 1.1, 0.1)
+            sns.histplot(df[df[col] <= 1][col], bins=bins, kde=True)
+            plt.xticks(bins)
+            plt.ylim(0, 20000)
+        elif col == "ingreso_mensual":
+            step = 5000
+            bins = np.arange(0, 50000 + step, step)
+            sns.histplot(df[df[col] <= 50000][col], bins=bins, kde=True)
+            plt.xticks(bins, rotation=45)
+            plt.xlim(0, 50000)
+            plt.ylim(0, 20000)
+        elif col == "num_otros_prestamos":
+            bins = np.arange(0, 6, 1)
+            sns.histplot(df[df[col] <= 5][col], bins=bins, kde=False)
+            plt.xticks(bins)
+            plt.xlim(0, 5)
+            plt.ylim(0, 8000)
+        elif col == "cuentas_abiertas":
+            bins = np.arange(0, 31, 1)
+            sns.histplot(df[df[col] <= 30][col], bins=bins, kde=False)
+            plt.xticks(bins)
+            plt.xlim(0, 30)
+            plt.ylim(0, 8000)
+        else:
+            sns.histplot(df[col], bins=30, kde=True)
         plt.title(f'Histograma de {col} (rango: {min_val:.2f} a {max_val:.2f})')
         plt.xlabel(col)
         plt.ylabel('Frecuencia')
         pdf.savefig()
         plt.close()
 
-    # Boxplots individuales
+        # Boxplots individuales por variable numérica (con límites iguales al histograma)
     for col in df.select_dtypes(include=np.number).columns:
         plt.figure(figsize=(8, 4))
-        sns.boxplot(x=df[col])
+        if col == "uso_de_credito":
+            sns.boxplot(x=df[(df[col] >= 0) & (df[col] <= 1)][col])
+            plt.xlim(0, 1)
+        elif col == "radio_deuda":
+            sns.boxplot(x=df[df[col] <= 1][col])
+            plt.xlim(0, 1)
+        elif col == "ingreso_mensual":
+            sns.boxplot(x=df[df[col] <= 50000][col])
+            plt.xlim(0, 50000)
+        elif col == "num_otros_prestamos":
+            sns.boxplot(x=df[df[col] <= 5][col])
+            plt.xlim(0, 5)
+        elif col == "cuentas_abiertas":
+            sns.boxplot(x=df[df[col] <= 30][col])
+            plt.xlim(0, 30)
+        else:
+            sns.boxplot(x=df[col])
         plt.title(f'Boxplot de {col}')
+        plt.xlabel(col)
         pdf.savefig()
         plt.close()
 
@@ -294,7 +341,7 @@ Cantidad de valores únicos por columna:
     pdf.savefig()
     plt.close()
 
-    # Resultados de modelos
+    # Resultados de modelos (todos juntos en una sola hoja)
     plt.figure(figsize=(10, 7))
     plt.axis('off')
     resultados = (
