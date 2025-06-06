@@ -241,7 +241,7 @@ Cantidad de valores únicos por columna:
         pdf.savefig()
         plt.close()
 
-        # Boxplots individuales por variable numérica (con límites iguales al histograma)
+    # Boxplots individuales por variable numérica (con límites iguales al histograma)
     for col in df.select_dtypes(include=np.number).columns:
         plt.figure(figsize=(8, 4))
         if col == "uso_de_credito":
@@ -366,8 +366,8 @@ Cantidad de valores únicos por columna:
     conclusiones = (
         f"Conclusiones:\n\n"
         f"El modelo con mejor desempeño de acuerdo al silhouette score fue: {best_model} (score: {scores[best_model]:.3f}).\n\n"
-        "Se recomienda analizar más a fondo las variables que más influyen en la segmentación y considerar la recolección de más datos si es posible.\n"
-        "Además, los resultados muestran el desempeño de todos los modelos supervisados y no supervisados aplicados al dataset."
+        "Se recomienda analizar más a fondo las variables que más influyen en la segmentación y considerar la recolección\n de más datos si es posible. para mejorar la prediccion"
+        "\n Además, los resultados muestran el desempeño de todos los modelos supervisados y no supervisados aplicados al dataset."
     )
     plt.text(0.01, 0.5, conclusiones, fontsize=14, va='center')
     pdf.savefig()
